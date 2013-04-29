@@ -24,6 +24,7 @@ from .file import File
 from .server import Server, RequestHandler
 from .browser import browserReload, browserReloadCSS
 
+MINIMAL_CACTUS_SUBFOLDERS = ['pages', 'static', 'templates', 'plugins']
 
 class Site(object):
 	
@@ -61,7 +62,7 @@ class Site(object):
 		"""
 		Check if this path looks like a Cactus website
 		"""
-		for p in ['pages', 'static', 'templates', 'plugins']:
+		for p in MINIMAL_CACTUS_SUBFOLDERS:
 			if not os.path.isdir(os.path.join(self.path, p)):
 				logging.info('This does not look like a (complete) cactus project (missing "%s" subfolder)', p)
 				sys.exit()
@@ -71,7 +72,7 @@ class Site(object):
 		Bootstrap a new project at a given path. If provided, the skeleton argument will be used as the basis for the new cactus project, in place of the default skeleton. If provided, the argument can be a filesystem path to a directory, a tarfile, a zipfile, or a URL which retrieves a tarfile or a zipfile.
 		"""
 		
-		skeletonArchive = skeletonFile = None
+		skeletonArchive = skeletonFile = skeletonHandler = None
 		if skeleton is None:
 			from .skeleton import data
 			logging.info("Building from data")
@@ -86,11 +87,10 @@ class Site(object):
 
 		if skeletonFile:
 			if tarfile.is_tarfile(skeletonFile):
-				skeletonArchive = tarfile.open(name=skeletonFile, mode='r')
+				skeletonHandler = TarFileArchiveHandler(skeletonFile)
 			elif zipfile.is_zipfile(skeletonFile):
-				skeletonArchive = zipfile.ZipFile(skeletonFile)
+				skeletonHandler = ZipFileArchiveHandler(skeletonFile)
 			else:
-				import pdb; pdb.set_trace()
 				logging.error("File %s is an unknown file archive type. At this time, skeleton argument must be a directory, a zipfile, or a tarball." % skeletonFile)
 				sys.exit()
 
@@ -98,6 +98,9 @@ class Site(object):
 			os.mkdir(self.path)
 			skeletonArchive.extractall(path=self.path)
 			skeletonArchive.close()
+			logging.info('New project generated at %s', self.path)
+		elif skeletonHandler:
+			skeletonHandler.extract_to(self.path)
 			logging.info('New project generated at %s', self.path)
 		elif os.path.isdir(skeleton):
 			shutil.copytree(skeleton, self.path)
@@ -386,3 +389,54 @@ class Site(object):
 		for plugin in self._plugins:
 			if hasattr(plugin, method):
 				getattr(plugin, method)(*args, **kwargs)
+
+class ArchiveHandler(object):
+	def __init__(self, filename):
+		self.filename = filename
+		self.open_archive()
+	
+	def close_archive(self):
+		if self.archive is not None:
+			self.archive.close()
+
+	def directories_in_path(self,path=""):
+		seeking = list(MINIMAL_CACTUS_SUBFOLDERS)
+		for filename in self.list_files():
+			if path and filename.startswith(path):
+				filename = filename[len(path):]
+			if filename.strip('/') in seeking:
+				seeking.remove(filename.strip('/'))
+		
+		return (len(seeking) == 0)
+				
+	def extract_to(self, path):
+		self.open_archive()
+		if self.directories_in_path():
+			self.archive.extractall(path=path)
+		else:
+			extracted = False
+			for archive_path in self.list_files():
+				if self.directories_in_path(archive_path):
+					tempdir = tempfile.gettempdir()
+					self.archive.extractall(tempdir)
+					shutil.copytree(os.path.join(tempdir,archive_path), path)
+					extracted = True
+					break
+			if not extracted:
+				raise Exception("Skeleton %s does not contain the minimal Cactus subfolders" % self.filename)
+		self.close_archive()
+
+class TarFileArchiveHandler(ArchiveHandler):
+	def open_archive(self):
+		self.archive = tarfile.open(name=self.filename,mode='r')
+	
+	def list_files(self):
+		return self.archive.getnames()
+		
+class ZipFileArchiveHandler(ArchiveHandler):
+	def open_archive(self):
+		self.archive = zipfile.ZipFile(self.filename)
+
+	def list_files(self):
+		return self.archive.namelist()
+
