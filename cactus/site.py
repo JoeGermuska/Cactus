@@ -82,7 +82,7 @@ class Site(object):
 			skeletonArchive = tarfile.open(name=temp.name, mode='r')
 		elif os.path.isfile(skeleton):
 			skeletonFile = skeleton
-		else: # assume it's a URL
+		elif not os.path.isdir(skeleton): # assume it's a URL
 			skeletonFile, headers = urllib.urlretrieve(skeleton)
 
 		if skeletonFile:
