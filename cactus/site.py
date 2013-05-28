@@ -207,9 +207,9 @@ class Site(object):
 			if  len(changes["added"]) == 0 and \
 				len(changes["deleted"]) == 0 and \
 				set(map(lambda x: os.path.splitext(x)[1], changes["changed"])) == set([".css"]):
-				browserReloadCSS('http://127.0.0.1:%s' % port)
+				browserReloadCSS('http://localhost:%s' % port)
 			else:
-				browserReload('http://127.0.0.1:%s' % port)
+				browserReload('http://localhost:%s' % port)
 			
 			self.listener.resume()
 	
@@ -224,7 +224,7 @@ class Site(object):
 			return
 		
 		if browser is True:
-			webbrowser.open('http://127.0.0.1:%s' % port)
+			webbrowser.open('http://localhost:%s' % port)
 
 		try: 
 			httpd.serve_forever() 
